@@ -1,12 +1,9 @@
 import {
   type JobContext,
   type JobProcess,
-  WorkerOptions,
-  cli,
   defineAgent,
 } from '@livekit/agents';
 import * as silero from '@livekit/agents-plugin-silero';
-import { fileURLToPath } from 'node:url';
 
 import { ConfigService } from '../config/configService.js';
 import { MockConfigProvider } from '../config/providers/mockConfigProvider.js';
@@ -80,6 +77,4 @@ export const agentDefinition = defineAgent({
   },
 });
 
-export function runAgentCli() {
-  cli.runApp(new WorkerOptions({ agent: fileURLToPath(import.meta.url), agentName: 'sic-agent' }));
-}
+export default agentDefinition;

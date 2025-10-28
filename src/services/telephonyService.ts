@@ -1,5 +1,5 @@
 import { getJobContext } from '@livekit/agents';
-import * as livekitPlugin from '@livekit/agents-plugin-livekit';
+import { SipClient } from 'livekit-server-sdk';
 
 import type { TelephonyProfile } from '../config/configTypes.js';
 
@@ -11,9 +11,11 @@ export type TransferTarget = {
 
 export class TelephonyService {
   private profiles: TelephonyProfile[];
+  private readonly sipClient?: SipClient;
 
-  constructor(profiles: TelephonyProfile[]) {
+  constructor(profiles: TelephonyProfile[], sipClient?: SipClient) {
     this.profiles = profiles;
+    this.sipClient = sipClient ?? TelephonyService.createSipClientFromEnv();
   }
 
   updateProfiles(profiles: TelephonyProfile[]) {
@@ -48,22 +50,35 @@ export class TelephonyService {
     return firstDestination?.number ? `tel:${firstDestination.number}` : null;
   }
 
+  private static createSipClientFromEnv(): SipClient | undefined {
+    const url = process.env.LIVEKIT_URL;
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+
+    if (!url || !apiKey || !apiSecret) {
+      console.warn(
+        '⚠️  TelephonyService: LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET are not fully defined. Provide them or supply a custom SipClient.',
+      );
+      return undefined;
+    }
+
+    return new SipClient(url, apiKey, apiSecret);
+  }
+
   async transfer(target: TransferTarget) {
+    if (!this.sipClient) {
+      throw new Error('TelephonyService has no SIP client configured. Provide credentials or inject a custom client.');
+    }
+
     const destination = this.resolveDestination(target);
     if (!destination) {
       throw new Error('No valid transfer destination found');
     }
 
-    const sipClient = new livekitPlugin.SipClient(
-      process.env.LIVEKIT_URL,
-      process.env.LIVEKIT_API_KEY,
-      process.env.LIVEKIT_API_SECRET,
-    );
-
     const jobCtx = getJobContext();
     const participant = await jobCtx.waitForParticipant();
 
-    await sipClient.transferSipParticipant(jobCtx.room.name, participant.identity, destination, {
+    await this.sipClient.transferSipParticipant(jobCtx.room.name, participant.identity, destination, {
       playDialtone: true,
     });
 
